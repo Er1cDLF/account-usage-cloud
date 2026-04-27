@@ -187,6 +187,18 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "account-usage-cloud-api",
+    health: "/health",
+  });
+});
+
 app.get("/api/me", requireUser(async (req, res) => {
   res.json({ user: publicUser(req.user) });
 }));
