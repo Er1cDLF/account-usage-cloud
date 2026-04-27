@@ -7,8 +7,8 @@ import interactionPlugin from "@fullcalendar/interaction";
 import zhCnLocale from "@fullcalendar/core/locales/zh-cn";
 import "./styles.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:10000";
-const WS_URL = import.meta.env.VITE_WS_URL || API_URL.replace(/^http/, "ws") + "/ws";
+const API_URL = import.meta.env.VITE_API_URL || "https://account-usage-cloud.onrender.com";
+const WS_URL = import.meta.env.VITE_WS_URL || "wss://account-usage-cloud.onrender.com/ws";
 const AUTH_TOKEN_KEY = "cloudAccountUsageAuthToken";
 const USAGE_SESSION_KEY = "cloudAccountUsageSessionId";
 const USERNAME_KEY = "cloudAccountUsageUsername";
