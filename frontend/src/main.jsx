@@ -12,7 +12,8 @@ const WS_URL = import.meta.env.VITE_WS_URL || "wss://account-usage-cloud.onrende
 const AUTH_TOKEN_KEY = "cloudAccountUsageAuthToken";
 const USAGE_SESSIONS_KEY = "cloudAccountUsageSessions";
 const USERNAME_KEY = "cloudAccountUsageUsername";
-const DEFAULT_TITLE = "学习账号使用管理";
+const DEFAULT_TITLE = "学习共享空间";
+const ACCOUNT_A_EMAIL = "Lifuduan2000@gmail.com";
 
 function formatDuration(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -44,6 +45,17 @@ function writeSessionMap(map) {
   localStorage.setItem(USAGE_SESSIONS_KEY, JSON.stringify(map));
 }
 
+function accountShortName(accountName) {
+  if (accountName?.includes("A")) return "号A";
+  if (accountName?.includes("B")) return "号B";
+  return accountName || "账号";
+}
+
+function accountDisplayName(account) {
+  if (account.name?.includes("A")) return `${account.name}（${ACCOUNT_A_EMAIL}）`;
+  return account.name;
+}
+
 function App() {
   const [page, setPage] = useState("overview");
   const [authMode, setAuthMode] = useState("login");
@@ -54,7 +66,6 @@ function App() {
   const [login, setLogin] = useState({ username: localStorage.getItem(USERNAME_KEY) || "", password: "" });
   const [register, setRegister] = useState({ username: "", displayName: "", password: "", inviteCode: "" });
   const [chatText, setChatText] = useState("");
-  const [chatAccountId, setChatAccountId] = useState("all");
   const [calendarAccountId, setCalendarAccountId] = useState("all");
   const [tick, setTick] = useState(Date.now());
   const [authLoading, setAuthLoading] = useState(false);
@@ -120,7 +131,7 @@ function App() {
     if (!document.hidden) return;
     setUnreadCount((count) => count + 1);
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("学习账号有新消息", {
+      new Notification("学习共享空间有新消息", {
         body: `${item.name}: ${item.text}`,
       });
     }
@@ -242,15 +253,13 @@ function App() {
       .filter((item) => calendarAccountId === "all" || item.accountId === calendarAccountId)
       .map((item) => ({
         id: item.id,
-        title: `${item.name} · ${item.accountName}`,
+        title: `${accountShortName(item.accountName)}-${item.name}`,
         start: item.startedAt,
         end: item.reason === "active" ? new Date().toISOString() : item.endedAt,
         backgroundColor: item.userColor,
         borderColor: item.userColor,
       }));
   }, [state, active, tick, calendarAccountId]);
-
-  const filteredMessages = (state?.messages || []).filter((item) => chatAccountId === "all" || item.accountId === chatAccountId);
 
   async function submitLogin(event) {
     event.preventDefault();
@@ -339,8 +348,7 @@ function App() {
     if (!text) return;
     setChatLoading(true);
     try {
-      const accountId = chatAccountId === "all" ? null : chatAccountId;
-      const nextState = await api("/api/messages", { method: "POST", body: JSON.stringify({ text, accountId }) });
+      const nextState = await api("/api/messages", { method: "POST", body: JSON.stringify({ text, accountId: null }) });
       receiveState(nextState, { silent: true });
       setChatText("");
     } catch (error) {
@@ -364,11 +372,15 @@ function App() {
     return active.filter((item) => item.accountId === accountId);
   }
 
+  function historyForAccount(accountId) {
+    return (state?.history || []).filter((item) => item.accountId === accountId).slice(0, 80);
+  }
+
   if (!user) {
     return (
       <main className="auth-view">
         <section className="auth-card">
-          <p className="eyebrow">学习账号</p>
+          <p className="eyebrow">学习共享空间</p>
           <h1>登录后使用</h1>
           <div className="auth-tabs">
             <button className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")} type="button">登录</button>
@@ -399,9 +411,12 @@ function App() {
   return (
     <main className="workspace">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">学习账号</p>
-          <h1>使用管理</h1>
+        <div className="brand">
+          <img src="/Logo.png" alt="学习共享空间" />
+          <div>
+            <p className="brand-name">学习共享空间</p>
+            <p className="brand-line">人以想象开路，AI以智慧相伴；让知识流动，让成长发生。</p>
+          </div>
         </div>
         <div className="top-actions">
           <span className="user-chip" style={{ "--user-color": user.color }}>{user.displayName}</span>
@@ -437,7 +452,7 @@ function App() {
                 <article className="account-card" key={account.id} style={{ "--account-color": account.color }}>
                   <div className="account-card-head">
                     <div>
-                      <h3>{account.name}</h3>
+                      <h3>{accountDisplayName(account)}</h3>
                       <span>{people.length ? `使用中 · ${people.length} 人` : "空闲 · 0 人"}</span>
                     </div>
                     <i />
@@ -466,7 +481,7 @@ function App() {
         <section className="page-section">
           <div className="section-title">
             <h2>使用日历</h2>
-            <p>每个人都有固定颜色，日历按人的颜色涂色；也可以筛选具体学习账号。</p>
+            <p>每个人都有固定颜色，事件显示为“号A-人名”或“号B-人名”。</p>
           </div>
           <div className="filters">
             <button className={calendarAccountId === "all" ? "active" : ""} onClick={() => setCalendarAccountId("all")} type="button">全部账号</button>
@@ -482,6 +497,8 @@ function App() {
               locale={zhCnLocale}
               height="auto"
               allDaySlot={false}
+              displayEventTime={false}
+              eventTimeFormat={false}
               events={calendarEvents}
               nowIndicator
             />
@@ -513,49 +530,53 @@ function App() {
         <section className="page-section narrow">
           <div className="section-title">
             <h2>聊天</h2>
-            <p>消息可以发到公共频道，也可以关联到某一个学习账号。</p>
+            <p>这里是唯一的公共聊天区，用来协调账号使用。</p>
           </div>
           {"Notification" in window && Notification.permission === "default" && <button className="notify-button" onClick={requestNotificationPermission} type="button">开启消息提醒</button>}
-          <div className="filters">
-            <button className={chatAccountId === "all" ? "active" : ""} onClick={() => setChatAccountId("all")} type="button">公共</button>
-            {accounts.map((account) => (
-              <button className={chatAccountId === account.id ? "active" : ""} onClick={() => setChatAccountId(account.id)} type="button" key={account.id}>{account.name}</button>
-            ))}
-          </div>
           <form className="chat-compose" onSubmit={sendMessage}>
             <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="输入消息" maxLength={500} />
             <button disabled={chatLoading}>{chatLoading ? "发送中..." : "发送"}</button>
           </form>
           <div className="chat-list relaxed">
-            {filteredMessages.slice(0, 80).map((item) => (
+            {(state?.messages || []).slice(0, 80).map((item) => (
               <article className={`chat-message ${item.system ? "system" : ""}`} key={item.id}>
-                <div><strong style={{ color: item.userColor }}>{item.name}</strong><span>{formatTime(item.createdAt)}{item.accountName ? ` · ${item.accountName}` : " · 公共"}</span></div>
+                <div><strong style={{ color: item.userColor }}>{item.name}</strong><span>{formatTime(item.createdAt)}</span></div>
                 <p>{item.text}</p>
               </article>
             ))}
-            {!filteredMessages.length && <p className="empty-text">暂无聊天消息。</p>}
+            {!state?.messages?.length && <p className="empty-text">暂无聊天消息。</p>}
           </div>
         </section>
       )}
 
       {page === "history" && (
-        <section className="page-section narrow">
+        <section className="page-section">
           <div className="section-title">
             <h2>历史记录</h2>
-            <p>每条记录都标明使用人、学习账号和时长。</p>
+            <p>按学习账号分成两列，方便分别查看 A/B 两个账号的使用情况。</p>
           </div>
-          <ol className="history-list relaxed">
-            {(state?.history || []).slice(0, 100).map((item) => (
-              <li key={item.id}>
-                <span className="color-dot" style={{ background: item.userColor }} />
-                <div>
-                  <strong>{item.name} 使用 {item.accountName} · {formatDuration(item.durationMs || 0)}</strong>
-                  <span>{formatTime(item.startedAt)} - {formatTime(item.endedAt)} · {item.reason === "heartbeat_timeout" ? "离线超时自动结束" : "手动结束"}</span>
-                </div>
-              </li>
-            ))}
-            {!state?.history?.length && <li><div><strong>暂无记录</strong><span>结束使用后会显示在这里。</span></div></li>}
-          </ol>
+          <div className="history-columns">
+            {accounts.map((account) => {
+              const rows = historyForAccount(account.id);
+              return (
+                <section className="history-column" key={account.id}>
+                  <h3>{accountDisplayName(account)}</h3>
+                  <ol className="history-list relaxed">
+                    {rows.map((item) => (
+                      <li key={item.id}>
+                        <span className="color-dot" style={{ background: item.userColor }} />
+                        <div>
+                          <strong>{item.name} · {formatDuration(item.durationMs || 0)}</strong>
+                          <span>{formatTime(item.startedAt)} - {formatTime(item.endedAt)} · {item.reason === "heartbeat_timeout" ? "离线超时自动结束" : "手动结束"}</span>
+                        </div>
+                      </li>
+                    ))}
+                    {!rows.length && <li><div><strong>暂无记录</strong><span>结束使用后会显示在这里。</span></div></li>}
+                  </ol>
+                </section>
+              );
+            })}
+          </div>
         </section>
       )}
     </main>

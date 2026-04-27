@@ -176,6 +176,7 @@ h3 {
 }
 
 .topbar,
+.brand,
 .top-actions,
 .page-tabs,
 .section-title,
@@ -192,6 +193,36 @@ h3 {
 .topbar {
   justify-content: space-between;
   padding-bottom: 20px;
+}
+
+.brand {
+  align-items: center;
+  min-width: 0;
+}
+
+.brand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.brand-name {
+  color: var(--ink);
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.brand-line {
+  margin-top: 8px;
+  color: #3b4a57;
+  font-family: "KaiTi", "STKaiti", "Microsoft YaHei", serif;
+  font-size: clamp(15px, 2vw, 20px);
+  line-height: 1.45;
 }
 
 .top-actions {
@@ -414,15 +445,35 @@ h3 {
   align-items: flex-start;
 }
 
+.history-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.history-column {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow);
+}
+
+.history-column h3 {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 900px) {
   .topbar,
+  .brand,
   .section-title {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .account-grid,
-  .user-grid {
+  .user-grid,
+  .history-columns {
     grid-template-columns: 1fr;
   }
 }
