@@ -6,7 +6,7 @@
 - 后端：Render Web Service + Node.js + WebSocket
 - 数据库：Supabase PostgreSQL
 
-功能包含注册登录、邀请码、免登录、在线占用提示、30 秒心跳、90 秒离线释放、聊天、使用日历和历史记录。
+功能包含注册登录、邀请码、免登录、两个学习账号状态、多人同时在线、按人分配颜色、30 秒心跳、90 秒离线释放、聊天、使用日历、成员页和历史记录。
 
 ## 目录
 
@@ -133,8 +133,9 @@ WebSocket：ws://localhost:10000/ws
 - `auth_sessions`：免登录令牌
 - `usage_sessions`：账号占用时段
 - `chat_messages`：聊天与系统消息
+- `learning_accounts`：学习账号列表，默认创建“学习账号 A”和“学习账号 B”
 
-`usage_sessions` 上有一个部分唯一索引，保证同一时刻最多只有一个未结束的使用会话。
+`usage_sessions` 上有一个部分唯一索引，保证同一个人在同一个学习账号上不会重复开始；不同人可以同时使用同一个学习账号。
 
 ## 6. 当前限制
 
