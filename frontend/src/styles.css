@@ -116,6 +116,35 @@ h2 {
   gap: 10px;
 }
 
+.notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  line-height: 1.5;
+  font-size: 14px;
+  outline: none;
+}
+
+.notice.error {
+  color: var(--red);
+  border-color: rgba(180, 35, 24, 0.35);
+  background: var(--red-soft);
+}
+
+.notice.info {
+  color: var(--blue);
+  border-color: rgba(36, 84, 166, 0.28);
+  background: var(--blue-soft);
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .app-shell {
   width: min(1320px, calc(100% - 32px));
   min-height: 100vh;
@@ -200,10 +229,16 @@ h2 {
 }
 
 .text-button,
-.icon-button {
+.icon-button,
+.notify-button {
   min-height: 34px;
   color: var(--blue);
   background: var(--blue-soft);
+}
+
+.notify-button {
+  width: 100%;
+  margin: 14px 0 10px;
 }
 
 .active-card {
