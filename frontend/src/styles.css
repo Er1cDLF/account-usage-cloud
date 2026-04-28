@@ -29,7 +29,8 @@ body {
 }
 
 button,
-input {
+input,
+.link-button {
   min-height: 42px;
   border-radius: 8px;
   font: inherit;
@@ -50,6 +51,18 @@ button {
   color: #fff;
   background: var(--blue);
   cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  color: #fff;
+  background: var(--blue);
+  text-decoration: none;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -178,6 +191,7 @@ h3 {
 .topbar,
 .brand,
 .top-actions,
+.title-actions,
 .page-tabs,
 .section-title,
 .account-card-head,
@@ -278,6 +292,10 @@ h3 {
 
 .section-title p {
   max-width: 680px;
+}
+
+.title-actions {
+  align-items: center;
 }
 
 .account-grid {

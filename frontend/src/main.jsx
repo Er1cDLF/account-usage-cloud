@@ -444,7 +444,10 @@ function App() {
       {page === "overview" && (
         <section className="page-section">
           <div className="section-title">
-            <h2>账号总览</h2>
+            <div className="title-actions">
+              <h2>账号总览</h2>
+              <a className="link-button" href="https://chatgpt.com/" target="_blank" rel="noreferrer">跳转网页</a>
+            </div>
             <p>两个学习账号可以同时被多人使用，每张卡片单独显示当前人数和具体名单。</p>
           </div>
           <div className="account-grid">
