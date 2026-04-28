@@ -244,6 +244,9 @@ function App() {
   const accounts = state?.accounts || [];
   const active = state?.active || [];
   const users = state?.users || [];
+  const recentMessages = (state?.messages || []).slice(0, 80);
+  const systemMessages = recentMessages.filter((item) => item.system);
+  const memberMessages = recentMessages.filter((item) => !item.system);
   const sessionMap = readSessionMap();
 
   const calendarEvents = useMemo(() => {
@@ -527,24 +530,41 @@ function App() {
       )}
 
       {page === "chat" && (
-        <section className="page-section narrow">
+        <section className="page-section">
           <div className="section-title">
             <h2>聊天</h2>
-            <p>这里是唯一的公共聊天区，用来协调账号使用。</p>
+            <p>系统动态和成员对话分开显示，真正聊天时更清爽。</p>
           </div>
           {"Notification" in window && Notification.permission === "default" && <button className="notify-button" onClick={requestNotificationPermission} type="button">开启消息提醒</button>}
           <form className="chat-compose" onSubmit={sendMessage}>
             <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="输入消息" maxLength={500} />
             <button disabled={chatLoading}>{chatLoading ? "发送中..." : "发送"}</button>
           </form>
-          <div className="chat-list relaxed">
-            {(state?.messages || []).slice(0, 80).map((item) => (
-              <article className={`chat-message ${item.system ? "system" : ""}`} key={item.id}>
-                <div><strong style={{ color: item.userColor }}>{item.name}</strong><span>{formatTime(item.createdAt)}</span></div>
-                <p>{item.text}</p>
-              </article>
-            ))}
-            {!state?.messages?.length && <p className="empty-text">暂无聊天消息。</p>}
+          <div className="chat-columns">
+            <section className="chat-column">
+              <h3>成员聊天</h3>
+              <div className="chat-list relaxed">
+                {memberMessages.map((item) => (
+                  <article className="chat-message" key={item.id}>
+                    <div><strong style={{ color: item.userColor }}>{item.name}</strong><span>{formatTime(item.createdAt)}</span></div>
+                    <p>{item.text}</p>
+                  </article>
+                ))}
+                {!memberMessages.length && <p className="empty-text">暂无成员聊天。</p>}
+              </div>
+            </section>
+            <section className="chat-column system-column">
+              <h3>系统动态</h3>
+              <div className="chat-list relaxed">
+                {systemMessages.map((item) => (
+                  <article className="chat-message system" key={item.id}>
+                    <div><strong style={{ color: item.userColor }}>{item.name}</strong><span>{formatTime(item.createdAt)}</span></div>
+                    <p>{item.text}</p>
+                  </article>
+                ))}
+                {!systemMessages.length && <p className="empty-text">暂无系统动态。</p>}
+              </div>
+            </section>
           </div>
         </section>
       )}
