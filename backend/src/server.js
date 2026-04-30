@@ -23,6 +23,7 @@ const MEMBER_RULES = [
   { group: "组B", color: "#FBB9BA", names: ["wzh"] },
   { group: "组B", color: "#D4E5F4", names: ["不要洋葱cong", "cong"] },
   { group: "组B", color: "#926AAD", names: ["fentanyl"] },
+  { group: "组B", color: "#A72061", names: ["maningbo"] },
 ];
 
 const pool = new Pool({
@@ -214,11 +215,12 @@ async function ensureDatabase() {
         when lower(u.username) = 'wzh' or lower(u.display_name) = 'wzh' then '#FBB9BA'
         when lower(u.username) in ('不要洋葱cong', 'cong') or lower(u.display_name) in ('不要洋葱cong', 'cong') then '#D4E5F4'
         when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#926AAD'
+        when lower(u.username) = 'maningbo' or lower(u.display_name) = 'maningbo' then '#A72061'
         else '#FFD93D'
       end,
       member_group = case
         when lower(u.username) in ('eric', 'caesar', 'lens') or lower(u.display_name) in ('eric', 'caesar', 'lens') or u.username = '叶子' or u.display_name = '叶子' then '组A'
-        when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl') then '组B'
+        when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo') then '组B'
         else '未分组'
       end
   `);
