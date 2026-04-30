@@ -6,6 +6,7 @@ create table if not exists app_users (
   display_name text not null check (char_length(display_name) between 1 and 32),
   password_hash text not null,
   color text,
+  member_group text,
   created_at timestamptz not null default now()
 );
 

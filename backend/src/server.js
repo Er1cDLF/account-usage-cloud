@@ -14,10 +14,15 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "dev-only-change-me";
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
 const HEARTBEAT_TIMEOUT_MS = 90_000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
-const USER_COLORS = [
-  "#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c",
-  "#0891b2", "#be123c", "#4f46e5", "#65a30d", "#c2410c",
-  "#0f766e", "#7c3aed", "#b45309", "#0284c7", "#db2777",
+const DEFAULT_USER_COLOR = "#FFD93D";
+const MEMBER_RULES = [
+  { group: "组A", color: "#0A2463", names: ["eric"] },
+  { group: "组A", color: "#059244", names: ["叶子"] },
+  { group: "组A", color: "#AC5326", names: ["caesar"] },
+  { group: "组A", color: "#F6E4D0", names: ["lens"] },
+  { group: "组B", color: "#FBB9BA", names: ["wzh"] },
+  { group: "组B", color: "#D4E5F4", names: ["不要洋葱cong", "cong"] },
+  { group: "组B", color: "#926AAD", names: ["fentanyl"] },
 ];
 
 const pool = new Pool({
@@ -57,8 +62,21 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
 }
 
-function colorForIndex(index) {
-  return USER_COLORS[index % USER_COLORS.length];
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function memberRuleFor(username, displayName) {
+  const candidates = [normalizeName(username), normalizeName(displayName)];
+  return MEMBER_RULES.find((rule) => rule.names.some((name) => candidates.includes(normalizeName(name))));
+}
+
+function colorForUser(username, displayName) {
+  return memberRuleFor(username, displayName)?.color || DEFAULT_USER_COLOR;
+}
+
+function groupForUser(username, displayName) {
+  return memberRuleFor(username, displayName)?.group || "未分组";
 }
 
 function publicUser(row) {
@@ -67,7 +85,8 @@ function publicUser(row) {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
-    color: row.color || "#2563eb",
+    color: row.color || DEFAULT_USER_COLOR,
+    group: row.member_group || groupForUser(row.username, row.display_name),
     createdAt: row.created_at,
   };
 }
@@ -91,7 +110,7 @@ function mapUsage(row) {
     userId: row.user_id,
     username: row.username,
     name: row.display_name,
-    userColor: row.user_color || "#2563eb",
+    userColor: row.user_color || DEFAULT_USER_COLOR,
     startedAt: row.started_at,
     lastSeenAt: row.last_seen_at,
     endedAt: row.ended_at,
@@ -107,7 +126,7 @@ function mapMessage(row) {
     accountName: row.account_name,
     accountColor: row.account_color,
     userId: row.user_id,
-    userColor: row.user_color || "#2563eb",
+    userColor: row.user_color || DEFAULT_USER_COLOR,
     name: row.name,
     text: row.text,
     toSessionId: row.to_session_id,
@@ -171,6 +190,7 @@ async function ensureDatabase() {
     )
   `);
   await query(`alter table app_users add column if not exists color text`);
+  await query(`alter table app_users add column if not exists member_group text`);
   await query(`alter table usage_sessions add column if not exists account_id uuid references learning_accounts(id) on delete set null`);
   await query(`alter table chat_messages add column if not exists account_id uuid references learning_accounts(id) on delete set null`);
   await query(`drop index if exists one_active_usage_session`);
@@ -186,16 +206,21 @@ async function ensureDatabase() {
   `);
   await query(`
     update app_users u
-    set color = palette.color
-    from (
-      select id, (array[
-        '#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c',
-        '#0891b2', '#be123c', '#4f46e5', '#65a30d', '#c2410c',
-        '#0f766e', '#7c3aed', '#b45309', '#0284c7', '#db2777'
-      ])[((row_number() over (order by created_at, id) - 1) % 15) + 1] as color
-      from app_users
-    ) palette
-    where u.id = palette.id and u.color is null
+    set color = case
+        when lower(u.username) = 'eric' or lower(u.display_name) = 'eric' then '#0A2463'
+        when u.username = '叶子' or u.display_name = '叶子' then '#059244'
+        when lower(u.username) = 'caesar' or lower(u.display_name) = 'caesar' then '#AC5326'
+        when lower(u.username) = 'lens' or lower(u.display_name) = 'lens' then '#F6E4D0'
+        when lower(u.username) = 'wzh' or lower(u.display_name) = 'wzh' then '#FBB9BA'
+        when lower(u.username) in ('不要洋葱cong', 'cong') or lower(u.display_name) in ('不要洋葱cong', 'cong') then '#D4E5F4'
+        when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#926AAD'
+        else '#FFD93D'
+      end,
+      member_group = case
+        when lower(u.username) in ('eric', 'caesar', 'lens') or lower(u.display_name) in ('eric', 'caesar', 'lens') or u.username = '叶子' or u.display_name = '叶子' then '组A'
+        when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl') then '组B'
+        else '未分组'
+      end
   `);
   await query(`
     update usage_sessions
@@ -207,7 +232,7 @@ async function ensureDatabase() {
 async function authUserFromToken(rawToken) {
   if (!rawToken) return null;
   const result = await query(
-    `select u.id, u.username, u.display_name, u.color, u.created_at
+    `select u.id, u.username, u.display_name, u.color, u.member_group, u.created_at
      from auth_sessions s
      join app_users u on u.id = s.user_id
      where s.token_hash = $1 and s.expires_at > now()`,
@@ -248,7 +273,7 @@ const usageSelect = `
   select us.*,
          la.name as account_name,
          la.color as account_color,
-         coalesce(u.color, '#2563eb') as user_color
+         coalesce(u.color, '${DEFAULT_USER_COLOR}') as user_color
   from usage_sessions us
   left join learning_accounts la on la.id = us.account_id
   left join app_users u on u.id = us.user_id
@@ -258,7 +283,7 @@ const messageSelect = `
   select cm.*,
          la.name as account_name,
          la.color as account_color,
-         coalesce(u.color, '#2563eb') as user_color
+         coalesce(u.color, '${DEFAULT_USER_COLOR}') as user_color
   from chat_messages cm
   left join learning_accounts la on la.id = cm.account_id
   left join app_users u on u.id = cm.user_id
@@ -293,7 +318,7 @@ async function getState() {
     query(`${usageSelect} where us.ended_at is null order by us.started_at desc`),
     query(`${usageSelect} where us.ended_at is not null order by us.started_at desc limit 500`),
     query(`${messageSelect} order by cm.created_at desc limit 300`),
-    query(`select id, username, display_name, color, created_at from app_users order by created_at asc`),
+    query(`select id, username, display_name, color, member_group, created_at from app_users order by member_group asc, created_at asc`),
   ]);
 
   return {
@@ -342,13 +367,13 @@ app.post("/api/register", async (req, res, next) => {
     if (!displayName) return res.status(400).json({ error: "请填写显示名称。" });
     if (password.length < 6) return res.status(400).json({ error: "密码至少 6 位。" });
 
-    const count = await query(`select count(*)::integer as count from app_users`);
-    const color = colorForIndex(count.rows[0].count);
+    const color = colorForUser(username, displayName);
+    const group = groupForUser(username, displayName);
     const created = await query(
-      `insert into app_users (username, display_name, password_hash, color)
-       values ($1, $2, $3, $4)
-       returning id, username, display_name, color, created_at`,
-      [username, displayName, hashPassword(password), color],
+      `insert into app_users (username, display_name, password_hash, color, member_group)
+       values ($1, $2, $3, $4, $5)
+       returning id, username, display_name, color, member_group, created_at`,
+      [username, displayName, hashPassword(password), color, group],
     ).catch((error) => {
       if (error.code === "23505") error.publicMessage = "该账号已注册。";
       throw error;

@@ -14,6 +14,7 @@ const USAGE_SESSIONS_KEY = "cloudAccountUsageSessions";
 const USERNAME_KEY = "cloudAccountUsageUsername";
 const DEFAULT_TITLE = "学习共享空间";
 const ACCOUNT_A_EMAIL = "Lifuduan2000@gmail.com";
+const ACCOUNT_B_EMAIL = "hzy1026931135@gmail.com";
 
 function formatDuration(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -53,7 +54,16 @@ function accountShortName(accountName) {
 
 function accountDisplayName(account) {
   if (account.name?.includes("A")) return `${account.name}（${ACCOUNT_A_EMAIL}）`;
+  if (account.name?.includes("B")) return `${account.name}（${ACCOUNT_B_EMAIL}）`;
   return account.name;
+}
+
+function groupedUsers(users) {
+  const groups = ["组A", "组B", "未分组"];
+  return groups.map((group) => ({
+    group,
+    users: users.filter((item) => (item.group || "未分组") === group),
+  }));
 }
 
 function App() {
@@ -516,17 +526,25 @@ function App() {
         <section className="page-section">
           <div className="section-title">
             <h2>成员</h2>
-            <p>当前已注册 {users.length} 人。每个人的颜色会用于日历和在线名单。</p>
+            <p>当前已注册 {users.length} 人。成员按组展示，每个人的颜色会用于日历、在线名单和聊天。</p>
           </div>
-          <div className="user-grid">
-            {users.map((item) => (
-              <article className="user-card" key={item.id}>
-                <span className="user-color-block" style={{ background: item.color }} />
-                <div>
-                  <strong>{item.displayName}</strong>
-                  <span>{item.username}</span>
+          <div className="member-groups">
+            {groupedUsers(users).map((group) => (
+              <section className="member-group" key={group.group}>
+                <h3>{group.group}</h3>
+                <div className="user-grid">
+                  {group.users.map((item) => (
+                    <article className="user-card" key={item.id}>
+                      <span className="user-color-block" style={{ background: item.color }} />
+                      <div>
+                        <strong>{item.displayName}</strong>
+                        <span>{item.username} · {item.color}</span>
+                      </div>
+                    </article>
+                  ))}
+                  {!group.users.length && <p className="empty-text">暂无成员。</p>}
                 </div>
-              </article>
+              </section>
             ))}
           </div>
         </section>
