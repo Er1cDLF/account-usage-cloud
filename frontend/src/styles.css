@@ -30,13 +30,15 @@ body {
 
 button,
 input,
+select,
 .link-button {
   min-height: 42px;
   border-radius: 8px;
   font: inherit;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
@@ -243,6 +245,10 @@ h3 {
   justify-content: flex-end;
 }
 
+.account-menu {
+  position: relative;
+}
+
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -255,12 +261,67 @@ h3 {
   border: 1px solid var(--line);
 }
 
+.menu-trigger {
+  color: var(--ink);
+  background: #fff;
+}
+
 .user-chip::before {
   content: "";
   width: 10px;
   height: 10px;
   border-radius: 999px;
   background: var(--user-color);
+}
+
+.profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 20;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.profile-block {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-block h3 {
+  font-size: 16px;
+}
+
+.profile-block p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.profile-form {
+  display: grid;
+  gap: 10px;
+}
+
+.danger-zone {
+  border-bottom: 0;
+}
+
+.danger-button,
+.logout-button {
+  background: #e60000;
+}
+
+.logout-button {
+  width: 100%;
 }
 
 .page-tabs {

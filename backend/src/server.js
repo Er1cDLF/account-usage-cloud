@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 10000);
 const INVITE_CODE = process.env.INVITE_CODE || "WAYTOAGI";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-only-change-me";
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+const PROFILE_PASSPHRASE = process.env.PROFILE_PASSPHRASE || "WoAiXueXi";
 const HEARTBEAT_TIMEOUT_MS = 90_000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
 const DEFAULT_USER_COLOR = "#FFD93D";
@@ -24,7 +25,9 @@ const MEMBER_RULES = [
   { group: "组B", color: "#D4E5F4", names: ["不要洋葱cong", "cong"] },
   { group: "组B", color: "#926AAD", names: ["fentanyl"] },
   { group: "组B", color: "#A72061", names: ["maningbo"] },
+  { group: "组B", color: "#C2E3D0", names: ["baekhyun"] },
 ];
+const MEMBER_GROUPS = ["组A", "组B", "未分组"];
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -78,6 +81,10 @@ function colorForUser(username, displayName) {
 
 function groupForUser(username, displayName) {
   return memberRuleFor(username, displayName)?.group || "未分组";
+}
+
+function hasProfilePassphrase(req) {
+  return String(req.body.passphrase || "") === PROFILE_PASSPHRASE;
 }
 
 function publicUser(row) {
@@ -216,13 +223,29 @@ async function ensureDatabase() {
         when lower(u.username) in ('不要洋葱cong', 'cong') or lower(u.display_name) in ('不要洋葱cong', 'cong') then '#D4E5F4'
         when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#926AAD'
         when lower(u.username) = 'maningbo' or lower(u.display_name) = 'maningbo' then '#A72061'
+        when lower(u.username) = 'baekhyun' or lower(u.display_name) = 'baekhyun' then '#C2E3D0'
         else '#FFD93D'
       end,
       member_group = case
         when lower(u.username) in ('eric', 'caesar', 'lens') or lower(u.display_name) in ('eric', 'caesar', 'lens') or u.username = '叶子' or u.display_name = '叶子' then '组A'
-        when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo') then '组B'
+        when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun') then '组B'
         else '未分组'
       end
+    where lower(u.username) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+       or lower(u.display_name) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+       or u.username = '叶子'
+       or u.display_name = '叶子'
+  `);
+  await query(`
+    update app_users
+    set color = '${DEFAULT_USER_COLOR}',
+        member_group = coalesce(member_group, '未分组')
+    where not (
+      lower(username) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+      or lower(display_name) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+      or username = '叶子'
+      or display_name = '叶子'
+    )
   `);
   await query(`
     update usage_sessions
@@ -408,6 +431,44 @@ app.post("/api/logout", requireUser(async (req, res) => {
   const header = req.headers.authorization || "";
   const rawToken = header.startsWith("Bearer ") ? header.slice(7) : "";
   await query(`delete from auth_sessions where token_hash = $1`, [signToken(rawToken)]);
+  res.json({ ok: true });
+}));
+
+app.post("/api/profile/password", requireUser(async (req, res) => {
+  if (!hasProfilePassphrase(req)) return res.status(403).json({ error: "静态口令不正确。" });
+  const newPassword = String(req.body.newPassword || "");
+  if (newPassword.length < 6) return res.status(400).json({ error: "新密码至少 6 位。" });
+  await query(`update app_users set password_hash = $1 where id = $2`, [hashPassword(newPassword), req.user.id]);
+  res.json({ ok: true });
+}));
+
+app.patch("/api/profile/group", requireUser(async (req, res) => {
+  const group = String(req.body.group || "").trim();
+  if (!MEMBER_GROUPS.includes(group)) return res.status(400).json({ error: "请选择有效分组。" });
+  const result = await query(
+    `update app_users
+     set member_group = $1
+     where id = $2
+     returning id, username, display_name, color, member_group, created_at`,
+    [group, req.user.id],
+  );
+  await broadcastState().catch(() => {});
+  res.json({ user: publicUser(result.rows[0]), state: await getState() });
+}));
+
+app.delete("/api/profile", requireUser(async (req, res) => {
+  const confirmText = String(req.body.confirmText || "").trim();
+  if (confirmText !== "注销账号") return res.status(400).json({ error: "请输入“注销账号”确认。" });
+  await query(
+    `update usage_sessions
+     set ended_at = now(),
+         end_reason = 'account_deleted',
+         duration_ms = greatest(0, floor(extract(epoch from (now() - started_at)) * 1000))::integer
+     where user_id = $1 and ended_at is null`,
+    [req.user.id],
+  );
+  await query(`delete from app_users where id = $1`, [req.user.id]);
+  await broadcastState().catch(() => {});
   res.json({ ok: true });
 }));
 

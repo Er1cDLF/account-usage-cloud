@@ -76,6 +76,11 @@ function App() {
   const [login, setLogin] = useState({ username: localStorage.getItem(USERNAME_KEY) || "", password: "" });
   const [register, setRegister] = useState({ username: "", displayName: "", password: "", inviteCode: "" });
   const [chatText, setChatText] = useState("");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [passwordForm, setPasswordForm] = useState({ passphrase: "", newPassword: "" });
+  const [groupChoice, setGroupChoice] = useState("未分组");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [calendarAccountId, setCalendarAccountId] = useState("all");
   const [tick, setTick] = useState(Date.now());
   const [authLoading, setAuthLoading] = useState(false);
@@ -92,6 +97,7 @@ function App() {
 
   useEffect(() => {
     userRef.current = user;
+    if (user?.group) setGroupChoice(user.group);
   }, [user]);
 
   useEffect(() => {
@@ -371,14 +377,53 @@ function App() {
     }
   }
 
-  async function logout() {
-    await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {});
+  function clearLocalSession() {
     wsRef.current?.close();
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(USAGE_SESSIONS_KEY);
     userRef.current = null;
     setUser(null);
     setState(null);
+  }
+
+  async function logout() {
+    await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {});
+    clearLocalSession();
+  }
+
+  async function changePassword(event) {
+    event.preventDefault();
+    setProfileMessage("正在修改密码...");
+    try {
+      await api("/api/profile/password", { method: "POST", body: JSON.stringify(passwordForm) });
+      setPasswordForm({ passphrase: "", newPassword: "" });
+      setProfileMessage("密码已修改。");
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+  }
+
+  async function saveProfileGroup() {
+    setProfileMessage("正在保存分组...");
+    try {
+      const payload = await api("/api/profile/group", { method: "PATCH", body: JSON.stringify({ group: groupChoice }) });
+      setUser(payload.user);
+      userRef.current = payload.user;
+      receiveState(payload.state, { silent: true });
+      setProfileMessage("默认分组已保存。");
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+  }
+
+  async function deleteAccount() {
+    setProfileMessage("正在注销账号...");
+    try {
+      await api("/api/profile", { method: "DELETE", body: JSON.stringify({ confirmText: deleteConfirm }) });
+      clearLocalSession();
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
   }
 
   function accountActive(accountId) {
@@ -432,8 +477,41 @@ function App() {
           </div>
         </div>
         <div className="top-actions">
-          <span className="user-chip" style={{ "--user-color": user.color }}>{user.displayName}</span>
-          <button className="text-button" onClick={logout} type="button">退出登录</button>
+          <div className="account-menu">
+            <button className="user-chip menu-trigger" style={{ "--user-color": user.color }} onClick={() => setProfileMenuOpen((open) => !open)} type="button">
+              {user.displayName}
+            </button>
+            {profileMenuOpen && (
+              <section className="profile-menu" aria-label="个人资料菜单">
+                <div className="profile-block">
+                  <h3>查看账号密码</h3>
+                  <p>账号：{user.username}</p>
+                  <p>密码已加密保存，不能查看明文。输入静态口令 WoAiXueXi 后可修改密码。</p>
+                  <form className="profile-form" onSubmit={changePassword}>
+                    <input value={passwordForm.passphrase} onChange={(e) => setPasswordForm({ ...passwordForm, passphrase: e.target.value })} placeholder="静态口令" type="password" />
+                    <input value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} placeholder="新密码，至少 6 位" type="password" />
+                    <button type="submit">修改密码</button>
+                  </form>
+                </div>
+                <div className="profile-block">
+                  <h3>默认分组</h3>
+                  <select value={groupChoice} onChange={(e) => setGroupChoice(e.target.value)}>
+                    <option value="组A">组A</option>
+                    <option value="组B">组B</option>
+                    <option value="未分组">未分组</option>
+                  </select>
+                  <button type="button" onClick={saveProfileGroup}>保存分组</button>
+                </div>
+                <div className="profile-block danger-zone">
+                  <h3>注销账号</h3>
+                  <input value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} placeholder="输入：注销账号" />
+                  <button className="danger-button" type="button" onClick={deleteAccount}>注销账号</button>
+                </div>
+                {profileMessage && <p className={`notice ${profileMessage.includes("已") || profileMessage.includes("正在") ? "info" : "error"}`}>{profileMessage}</p>}
+                <button className="logout-button" onClick={logout} type="button">退出登录</button>
+              </section>
+            )}
+          </div>
         </div>
       </header>
 
