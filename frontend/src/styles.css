@@ -76,6 +76,10 @@ button {
   object-fit: contain;
 }
 
+.gpt-link img {
+  filter: invert(1);
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
