@@ -77,7 +77,16 @@ button {
 }
 
 .gpt-link img {
+  width: 33px;
+  height: 33px;
   filter: invert(1);
+}
+
+.gpt-link {
+  min-height: 63px;
+  padding: 0 24px;
+  font-size: 1.5em;
+  gap: 12px;
 }
 
 button:disabled {
