@@ -531,12 +531,12 @@ function App() {
 
       {page === "overview" && (
         <section className="page-section">
-          <div className="section-title">
-            <div className="title-actions">
-              <h2>账号总览</h2>
-              <a className="link-button" href="https://chatgpt.com/" target="_blank" rel="noreferrer">跳转网页</a>
-            </div>
-            <p>两个学习账号可以同时被多人使用，每张卡片单独显示当前人数和具体名单。</p>
+          <div className="section-title overview-title">
+            <h2>账号总览</h2>
+            <a className="link-button gpt-link" href="https://chatgpt.com/" target="_blank" rel="noreferrer">
+              <img src="/ChatGPT-Logo.png" alt="" />
+              <span>启动GPT</span>
+            </a>
           </div>
           <div className="account-grid">
             {accounts.map((account) => {

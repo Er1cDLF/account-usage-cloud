@@ -61,12 +61,19 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 0 16px;
   color: #fff;
   background: var(--blue);
   text-decoration: none;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.link-button img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 button:disabled {
@@ -355,6 +362,20 @@ h3 {
   max-width: 680px;
 }
 
+.overview-title {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.overview-title h2 {
+  justify-self: start;
+}
+
+.overview-title .gpt-link {
+  justify-self: center;
+}
+
 .title-actions {
   align-items: center;
 }
@@ -589,6 +610,10 @@ h3 {
   .section-title {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .overview-title {
+    display: flex;
   }
 
   .account-grid,

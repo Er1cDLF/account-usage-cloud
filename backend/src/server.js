@@ -24,7 +24,7 @@ const MEMBER_RULES = [
   { group: "组A", color: "#E85D75", names: ["litchi"] },
   { group: "组B", color: "#FBB9BA", names: ["wzh"] },
   { group: "组B", color: "#D4E5F4", names: ["不要洋葱cong", "cong"] },
-  { group: "组B", color: "#FF8FAB", names: ["fentanyl"] },
+  { group: "组B", color: "#926AAD", names: ["fentanyl"] },
   { group: "组B", color: "#A72061", names: ["maningbo"] },
   { group: "组B", color: "#8FE3CF", names: ["baekhyun"] },
 ];
@@ -223,7 +223,7 @@ async function ensureDatabase() {
         when lower(u.username) = 'litchi' or lower(u.display_name) = 'litchi' then '#E85D75'
         when lower(u.username) = 'wzh' or lower(u.display_name) = 'wzh' then '#FBB9BA'
         when lower(u.username) in ('不要洋葱cong', 'cong') or lower(u.display_name) in ('不要洋葱cong', 'cong') then '#D4E5F4'
-        when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#FF8FAB'
+        when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#926AAD'
         when lower(u.username) = 'maningbo' or lower(u.display_name) = 'maningbo' then '#A72061'
         when lower(u.username) = 'baekhyun' or lower(u.display_name) = 'baekhyun' then '#8FE3CF'
         else '#FFD93D'
