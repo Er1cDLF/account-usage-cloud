@@ -21,6 +21,7 @@ const MEMBER_RULES = [
   { group: "组A", color: "#059244", names: ["叶子"] },
   { group: "组A", color: "#AC5326", names: ["caesar"] },
   { group: "组A", color: "#F6E4D0", names: ["lens"] },
+  { group: "组A", color: "#0A6dAF", names: ["litchi"] },
   { group: "组B", color: "#FBB9BA", names: ["wzh"] },
   { group: "组B", color: "#D4E5F4", names: ["不要洋葱cong", "cong"] },
   { group: "组B", color: "#926AAD", names: ["fentanyl"] },
@@ -219,6 +220,7 @@ async function ensureDatabase() {
         when u.username = '叶子' or u.display_name = '叶子' then '#059244'
         when lower(u.username) = 'caesar' or lower(u.display_name) = 'caesar' then '#AC5326'
         when lower(u.username) = 'lens' or lower(u.display_name) = 'lens' then '#F6E4D0'
+        when lower(u.username) = 'litchi' or lower(u.display_name) = 'litchi' then '#0A6dAF'
         when lower(u.username) = 'wzh' or lower(u.display_name) = 'wzh' then '#FBB9BA'
         when lower(u.username) in ('不要洋葱cong', 'cong') or lower(u.display_name) in ('不要洋葱cong', 'cong') then '#D4E5F4'
         when lower(u.username) = 'fentanyl' or lower(u.display_name) = 'fentanyl' then '#926AAD'
@@ -227,12 +229,12 @@ async function ensureDatabase() {
         else '#FFD93D'
       end,
       member_group = case
-        when lower(u.username) in ('eric', 'caesar', 'lens') or lower(u.display_name) in ('eric', 'caesar', 'lens') or u.username = '叶子' or u.display_name = '叶子' then '组A'
+        when lower(u.username) in ('eric', 'caesar', 'lens', 'litchi') or lower(u.display_name) in ('eric', 'caesar', 'lens', 'litchi') or u.username = '叶子' or u.display_name = '叶子' then '组A'
         when lower(u.username) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun') or lower(u.display_name) in ('wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun') then '组B'
         else '未分组'
       end
-    where lower(u.username) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
-       or lower(u.display_name) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+    where lower(u.username) in ('eric', 'caesar', 'lens', 'litchi', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+       or lower(u.display_name) in ('eric', 'caesar', 'lens', 'litchi', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
        or u.username = '叶子'
        or u.display_name = '叶子'
   `);
@@ -241,8 +243,8 @@ async function ensureDatabase() {
     set color = '${DEFAULT_USER_COLOR}',
         member_group = coalesce(member_group, '未分组')
     where not (
-      lower(username) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
-      or lower(display_name) in ('eric', 'caesar', 'lens', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+      lower(username) in ('eric', 'caesar', 'lens', 'litchi', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
+      or lower(display_name) in ('eric', 'caesar', 'lens', 'litchi', 'wzh', '不要洋葱cong', 'cong', 'fentanyl', 'maningbo', 'baekhyun')
       or username = '叶子'
       or display_name = '叶子'
     )
