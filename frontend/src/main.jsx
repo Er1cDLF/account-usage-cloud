@@ -7,8 +7,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import zhCnLocale from "@fullcalendar/core/locales/zh-cn";
 import "./styles.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://account-usage-cloud.onrender.com";
-const WS_URL = import.meta.env.VITE_WS_URL || "wss://account-usage-cloud.onrender.com/ws";
+const API_URL = "";
 const AUTH_TOKEN_KEY = "cloudAccountUsageAuthToken";
 const USAGE_SESSIONS_KEY = "cloudAccountUsageSessions";
 const USERNAME_KEY = "cloudAccountUsageUsername";
@@ -88,7 +87,6 @@ function App() {
   const [chatLoading, setChatLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const wsRef = useRef(null);
   const authNoticeRef = useRef(null);
   const knownMessageIdsRef = useRef(new Set());
   const userRef = useRef(null);
@@ -127,7 +125,7 @@ function App() {
     try {
       response = await fetch(`${API_URL}${path}`, { ...options, headers });
     } catch {
-      throw new Error("无法连接服务器，请稍后重试。Render 免费服务刚唤醒时可能需要等待几十秒。");
+      throw new Error("无法连接服务器，请稍后重试。");
     }
 
     const payload = await response.json().catch(() => ({}));
@@ -186,20 +184,6 @@ function App() {
     receiveState(nextState, options);
   }
 
-  function connectWebSocket() {
-    wsRef.current?.close();
-    const separator = WS_URL.includes("?") ? "&" : "?";
-    const ws = new WebSocket(`${WS_URL}${separator}token=${encodeURIComponent(token())}`);
-    wsRef.current = ws;
-    ws.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-      if (payload.type === "state") receiveState(payload.state);
-    };
-    ws.onclose = () => {
-      if (token()) setTimeout(connectWebSocket, 2000);
-    };
-  }
-
   async function boot() {
     if (!token()) return;
     try {
@@ -207,7 +191,6 @@ function App() {
       setUser(payload.user);
       userRef.current = payload.user;
       await refreshStatus({ silent: true });
-      connectWebSocket();
     } catch {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       setUser(null);
@@ -222,7 +205,7 @@ function App() {
 
   useEffect(() => {
     if (!user) return undefined;
-    const refresh = setInterval(() => refreshStatus({ silent: true }).catch(() => {}), 10000);
+    const refresh = setInterval(() => refreshStatus().catch(() => {}), 10000);
     const heartbeat = setInterval(() => {
       const sessionIds = Object.values(readSessionMap());
       if (!sessionIds.length) return;
@@ -293,7 +276,6 @@ function App() {
       setAuthMessage("");
       requestNotificationPermission();
       await refreshStatus({ silent: true });
-      connectWebSocket();
     } catch (error) {
       setAuthMessage(error.message);
     } finally {
@@ -319,7 +301,6 @@ function App() {
       setAuthMessage("");
       requestNotificationPermission();
       await refreshStatus({ silent: true });
-      connectWebSocket();
     } catch (error) {
       setAuthMessage(`注册失败：${error.message}`);
     } finally {
@@ -378,7 +359,6 @@ function App() {
   }
 
   function clearLocalSession() {
-    wsRef.current?.close();
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(USAGE_SESSIONS_KEY);
     userRef.current = null;
