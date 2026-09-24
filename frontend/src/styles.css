@@ -711,82 +711,6 @@ h3 {
   }
 }
 
-.gesture-pad {
-  position: relative;
-  width: min(320px, 100%);
-  aspect-ratio: 1;
-  margin: 0 auto;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  color: var(--blue);
-}
-
-.gesture-lines {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.gesture-dot {
-  position: absolute;
-  width: 52px;
-  height: 52px;
-  transform: translate(-50%, -50%);
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #fff;
-  border: 2px solid var(--line);
-  color: var(--muted);
-  font-weight: 700;
-  pointer-events: none;
-}
-
-.gesture-dot.active {
-  border-color: var(--blue);
-  background: var(--blue);
-  color: #fff;
-}
-
-.gesture-setup {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-
-.gesture-setup-card {
-  width: min(460px, 100%);
-  padding: 28px;
-  display: grid;
-  gap: 18px;
-}
-
-.gesture-setup-card p {
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.gesture-result {
-  display: grid;
-  gap: 10px;
-}
-
-.gesture-result code {
-  display: block;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--blue-soft);
-  color: var(--blue);
-  word-break: break-all;
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 .account-card-actions {
   display: flex;
   gap: 10px;
@@ -837,18 +761,6 @@ h3 {
   color: var(--muted);
   font-size: 22px;
   line-height: 1;
-}
-
-.otp-gesture-step {
-  display: grid;
-  gap: 14px;
-  justify-items: center;
-  text-align: center;
-}
-
-.otp-gesture-step .notice {
-  width: 100%;
-  margin: 0;
 }
 
 .otp-loading {
