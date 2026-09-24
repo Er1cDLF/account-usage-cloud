@@ -102,6 +102,8 @@ function publicUser(row) {
     displayName: row.display_name,
     color: row.color || DEFAULT_USER_COLOR,
     group: row.member_group || groupForUser(row.username, row.display_name),
+    isAdmin: Boolean(row.is_admin),
+    isApproved: Boolean(row.is_approved),
     createdAt: row.created_at,
   };
 }
@@ -159,6 +161,8 @@ async function ensureDatabase() {
       username text not null unique check (username ~ '^[a-z0-9_]{3,32}$'),
       display_name text not null check (char_length(display_name) between 1 and 32),
       password_hash text not null,
+      is_approved boolean not null default false,
+      is_admin boolean not null default false,
       created_at timestamptz not null default now()
     )
   `);
@@ -206,6 +210,10 @@ async function ensureDatabase() {
   `);
   await query(`alter table app_users add column if not exists color text`);
   await query(`alter table app_users add column if not exists member_group text`);
+  await query(`alter table app_users add column if not exists is_approved boolean not null default true`);
+  await query(`alter table app_users alter column is_approved set default false`);
+  await query(`alter table app_users add column if not exists is_admin boolean not null default false`);
+  await query(`update app_users set is_admin = true, is_approved = true where lower(username) = 'eric'`);
   await query(`alter table usage_sessions add column if not exists account_id uuid references learning_accounts(id) on delete set null`);
   await query(`alter table chat_messages add column if not exists account_id uuid references learning_accounts(id) on delete set null`);
   await query(`drop index if exists one_active_usage_session`);
@@ -265,10 +273,11 @@ async function ensureDatabase() {
 async function authUserFromToken(rawToken) {
   if (!rawToken) return null;
   const result = await query(
-    `select u.id, u.username, u.display_name, u.color, u.member_group, u.created_at
+    `select u.id, u.username, u.display_name, u.color, u.member_group,
+            u.is_approved, u.is_admin, u.created_at
      from auth_sessions s
      join app_users u on u.id = s.user_id
-     where s.token_hash = $1 and s.expires_at > now()`,
+     where s.token_hash = $1 and s.expires_at > now() and u.is_approved = true`,
     [signToken(rawToken)],
   );
   return result.rows[0] || null;
@@ -290,6 +299,13 @@ function requireUser(handler) {
       next(error);
     }
   };
+}
+
+function requireAdmin(handler) {
+  return requireUser(async (req, res, next) => {
+    if (!req.user.is_admin) return res.status(403).json({ error: "仅管理员可以执行此操作。" });
+    await handler(req, res, next);
+  });
 }
 
 async function createSession(userId) {
@@ -351,7 +367,8 @@ async function getState() {
     query(`${usageSelect} where us.ended_at is null order by us.started_at desc`),
     query(`${usageSelect} where us.ended_at is not null order by us.started_at desc limit 500`),
     query(`${messageSelect} order by cm.created_at desc limit 300`),
-    query(`select id, username, display_name, color, member_group, created_at from app_users order by member_group asc, created_at asc`),
+    query(`select id, username, display_name, color, member_group, is_approved, is_admin, created_at
+           from app_users where is_approved = true order by member_group asc, created_at asc`),
   ]);
 
   return {
@@ -402,18 +419,22 @@ app.post("/api/register", async (req, res, next) => {
 
     const color = colorForUser(username, displayName);
     const group = groupForUser(username, displayName);
+    const bootstrapAdmin = username === "eric";
     const created = await query(
-      `insert into app_users (username, display_name, password_hash, color, member_group)
-       values ($1, $2, $3, $4, $5)
-       returning id, username, display_name, color, member_group, created_at`,
-      [username, displayName, hashPassword(password), color, group],
+      `insert into app_users (username, display_name, password_hash, color, member_group, is_approved, is_admin)
+       values ($1, $2, $3, $4, $5, $6, $6)
+       returning id, username, display_name, color, member_group, is_approved, is_admin, created_at`,
+      [username, displayName, hashPassword(password), color, group, bootstrapAdmin],
     ).catch((error) => {
       if (error.code === "23505") error.publicMessage = "该账号已注册。";
       throw error;
     });
-    const token = await createSession(created.rows[0].id);
     await broadcastState().catch(() => {});
-    res.json({ token, user: publicUser(created.rows[0]) });
+    res.status(201).json({
+      ok: true,
+      approved: bootstrapAdmin,
+      message: bootstrapAdmin ? "管理员账号注册成功，请登录。" : "注册成功，请等待管理员授权后登录。",
+    });
   } catch (error) {
     next(error);
   }
@@ -427,6 +448,9 @@ app.post("/api/login", async (req, res, next) => {
     const user = result.rows[0];
     if (!user || !verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ error: "账号或密码不正确。" });
+    }
+    if (!user.is_approved) {
+      return res.status(403).json({ error: "账号正在等待管理员授权。" });
     }
     const token = await createSession(user.id);
     res.json({ token, user: publicUser(user) });
@@ -457,11 +481,65 @@ app.patch("/api/profile/group", requireUser(async (req, res) => {
     `update app_users
      set member_group = $1
      where id = $2
-     returning id, username, display_name, color, member_group, created_at`,
+     returning id, username, display_name, color, member_group, is_approved, is_admin, created_at`,
     [group, req.user.id],
   );
   await broadcastState().catch(() => {});
   res.json({ user: publicUser(result.rows[0]), state: await getState() });
+}));
+
+app.get("/api/admin/users", requireAdmin(async (_req, res) => {
+  const result = await query(
+    `select id, username, display_name, color, member_group, is_approved, is_admin, created_at
+     from app_users
+     order by is_approved asc, member_group asc, created_at asc`,
+  );
+  res.json({ users: result.rows.map(publicUser) });
+}));
+
+app.patch("/api/admin/users/:id", requireAdmin(async (req, res) => {
+  const userId = String(req.params.id || "");
+  const group = req.body.group === undefined ? null : String(req.body.group || "").trim();
+  if (req.body.approved !== undefined && typeof req.body.approved !== "boolean") {
+    return res.status(400).json({ error: "授权状态格式不正确。" });
+  }
+  const approved = req.body.approved === undefined ? null : req.body.approved;
+  if (group !== null && !MEMBER_GROUPS.includes(group)) {
+    return res.status(400).json({ error: "请选择有效分组。" });
+  }
+
+  const targetResult = await query(`select * from app_users where id = $1`, [userId]);
+  const target = targetResult.rows[0];
+  if (!target) return res.status(404).json({ error: "没有找到该成员。" });
+  if (target.is_admin && approved === false) {
+    return res.status(400).json({ error: "不能取消管理员账号的授权。" });
+  }
+
+  const updated = await query(
+    `update app_users
+     set member_group = coalesce($1, member_group),
+         is_approved = coalesce($2, is_approved)
+     where id = $3
+     returning id, username, display_name, color, member_group, is_approved, is_admin, created_at`,
+    [group, approved, userId],
+  );
+
+  if (approved === false) {
+    await query(`delete from auth_sessions where user_id = $1`, [userId]);
+    await query(
+      `update usage_sessions
+       set ended_at = now(), end_reason = 'authorization_revoked',
+           duration_ms = greatest(0, floor(extract(epoch from (now() - started_at)) * 1000))::integer
+       where user_id = $1 and ended_at is null`,
+      [userId],
+    );
+    for (const socket of sockets) {
+      if (socket.userId === userId) socket.close(1008, "Authorization revoked");
+    }
+  }
+
+  await broadcastState().catch(() => {});
+  res.json({ user: publicUser(updated.rows[0]) });
 }));
 
 app.delete("/api/profile", requireUser(async (req, res) => {
@@ -574,7 +652,10 @@ const otpLimiter = rateLimit({
   message: { ok: false, error: "请求过于频繁，请稍后再试。" },
 });
 
-app.post("/api/otp/get", otpLimiter, (req, res) => {
+app.post(
+  "/api/otp/get",
+  requireUser(async (req, res, next) => otpLimiter(req, res, next)),
+  (req, res) => {
   const gestureHash = String(req.body?.gestureHash || "").trim().toLowerCase();
   const account = String(req.body?.account || "").trim().toUpperCase();
 
@@ -602,7 +683,8 @@ app.post("/api/otp/get", otpLimiter, (req, res) => {
 
   const remainingSeconds = 30 - (Math.floor(Date.now() / 1000) % 30);
   return res.json({ ok: true, otp, remainingSeconds });
-});
+  },
+);
 
 wss.on("connection", async (socket, request) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
@@ -612,6 +694,7 @@ wss.on("connection", async (socket, request) => {
     return;
   }
   sockets.add(socket);
+  socket.userId = user.id;
   socket.isAlive = true;
   socket.on("pong", () => {
     socket.isAlive = true;

@@ -242,6 +242,9 @@ function App() {
   const [otpResult, setOtpResult] = useState(null);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [otpError, setOtpError] = useState("");
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminMessage, setAdminMessage] = useState("");
+  const [adminLoadingId, setAdminLoadingId] = useState("");
 
   const authNoticeRef = useRef(null);
   const knownMessageIdsRef = useRef(new Set());
@@ -285,6 +288,7 @@ function App() {
     }
 
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && token()) clearLocalSession();
     if (!response.ok) throw new Error(payload.error || "请求失败，请稍后重试。");
     return payload;
   }
@@ -338,6 +342,12 @@ function App() {
   async function refreshStatus(options = {}) {
     const nextState = await api("/api/status");
     receiveState(nextState, options);
+    if (userRef.current?.isAdmin) await refreshAdminUsers();
+  }
+
+  async function refreshAdminUsers() {
+    const payload = await api("/api/admin/users");
+    setAdminUsers(payload.users || []);
   }
 
   async function boot() {
@@ -465,13 +475,11 @@ function App() {
     setAuthMessage("正在注册...");
     try {
       const payload = await api("/api/register", { method: "POST", body: JSON.stringify({ ...register, username }) });
-      localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-      localStorage.setItem(USERNAME_KEY, payload.user.username);
-      setUser(payload.user);
-      userRef.current = payload.user;
-      setAuthMessage("");
-      requestNotificationPermission();
-      await refreshStatus({ silent: true });
+      localStorage.setItem(USERNAME_KEY, username);
+      setLogin({ username, password: "" });
+      setRegister({ username: "", displayName: "", password: "", inviteCode: "" });
+      setAuthMode("login");
+      setAuthMessage(payload.message || "注册成功，请等待管理员授权后登录。");
     } catch (error) {
       setAuthMessage(`注册失败：${error.message}`);
     } finally {
@@ -526,6 +534,24 @@ function App() {
       setMessage(error.message);
     } finally {
       setChatLoading(false);
+    }
+  }
+
+  async function updateMember(userId, changes) {
+    setAdminLoadingId(userId);
+    setAdminMessage("");
+    try {
+      await api(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(changes),
+      });
+      await refreshAdminUsers();
+      await refreshStatus({ silent: true });
+      setAdminMessage("成员设置已保存。");
+    } catch (error) {
+      setAdminMessage(error.message);
+    } finally {
+      setAdminLoadingId("");
     }
   }
 
@@ -692,7 +718,7 @@ function App() {
               <input value={register.displayName} onChange={(e) => setRegister({ ...register, displayName: e.target.value })} placeholder="显示名称" required />
               <input value={register.password} onChange={(e) => setRegister({ ...register, password: e.target.value })} placeholder="密码，至少 6 位" type="password" required />
               <input value={register.inviteCode} onChange={(e) => setRegister({ ...register, inviteCode: e.target.value })} placeholder="邀请码" required />
-              <button disabled={authLoading}>{authLoading ? "注册中..." : "注册并登录"}</button>
+              <button disabled={authLoading}>{authLoading ? "注册中..." : "提交注册"}</button>
             </form>
           )}
           <p className="hint">第一栏是登录账号，不是邮箱。只能用小写字母、数字、下划线。</p>
@@ -842,8 +868,48 @@ function App() {
         <section className="page-section">
           <div className="section-title">
             <h2>成员</h2>
-            <p>当前已注册 {users.length} 人。成员按组展示，每个人的颜色会用于日历、在线名单和聊天。</p>
+            <p>
+              当前已授权 {users.length} 人。
+              {user.isAdmin && ` 另有 ${adminUsers.filter((item) => !item.isApproved).length} 人等待授权。`}
+              成员颜色会用于日历、在线名单和聊天。
+            </p>
           </div>
+          {user.isAdmin && adminMessage && <p className={`notice ${adminMessage.includes("已") ? "info" : "error"}`}>{adminMessage}</p>}
+          {user.isAdmin && (
+            <section className="member-group admin-member-group">
+              <h3>成员管理</h3>
+              <p className="admin-help">新注册成员需授权后才能登录。你也可以在这里修改每个人的分组。</p>
+              <div className="admin-user-list">
+                {adminUsers.map((item) => (
+                  <article className="admin-user-row" key={item.id}>
+                    <span className="user-color-block" style={{ background: item.color }} />
+                    <div className="admin-user-identity">
+                      <strong>{item.displayName}{item.isAdmin ? " · 管理员" : ""}</strong>
+                      <span>{item.username}</span>
+                    </div>
+                    <select
+                      aria-label={`修改 ${item.displayName} 的分组`}
+                      value={item.group || "未分组"}
+                      disabled={adminLoadingId === item.id}
+                      onChange={(event) => updateMember(item.id, { group: event.target.value })}
+                    >
+                      <option value="组A">组A</option>
+                      <option value="组B">组B</option>
+                      <option value="未分组">未分组</option>
+                    </select>
+                    <button
+                      className={item.isApproved ? "revoke-button" : "approve-button"}
+                      type="button"
+                      disabled={adminLoadingId === item.id || item.isAdmin}
+                      onClick={() => updateMember(item.id, { approved: !item.isApproved })}
+                    >
+                      {adminLoadingId === item.id ? "保存中..." : item.isApproved ? "取消授权" : "授权登录"}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           <div className="member-groups">
             {groupedUsers(users).map((group) => (
               <section className="member-group" key={group.group}>

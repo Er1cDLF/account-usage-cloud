@@ -7,8 +7,15 @@ create table if not exists app_users (
   password_hash text not null,
   color text,
   member_group text,
+  is_approved boolean not null default false,
+  is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table app_users add column if not exists is_approved boolean not null default true;
+alter table app_users alter column is_approved set default false;
+alter table app_users add column if not exists is_admin boolean not null default false;
+update app_users set is_admin = true, is_approved = true where lower(username) = 'eric';
 
 create table if not exists auth_sessions (
   token_hash text primary key,

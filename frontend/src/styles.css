@@ -493,6 +493,52 @@ h3 {
   margin-bottom: 14px;
 }
 
+.admin-member-group {
+  background: #f4f8ff;
+  border-color: rgba(36, 84, 166, 0.35);
+}
+
+.admin-help {
+  margin: -4px 0 16px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-row {
+  display: grid;
+  grid-template-columns: auto minmax(150px, 1fr) minmax(120px, 180px) 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admin-user-identity strong,
+.admin-user-identity span {
+  display: block;
+}
+
+.admin-user-identity span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.approve-button {
+  background: var(--green);
+}
+
+.revoke-button {
+  background: var(--red);
+}
+
 .user-card {
   padding: 16px;
   display: flex;
@@ -653,6 +699,15 @@ h3 {
   button {
     width: 100%;
     text-align: center;
+  }
+
+  .admin-user-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .admin-user-row select,
+  .admin-user-row button {
+    grid-column: 1 / -1;
   }
 }
 
