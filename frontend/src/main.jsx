@@ -65,6 +65,157 @@ function groupedUsers(users) {
   }));
 }
 
+async function sha256Hex(text) {
+  const data = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const GESTURE_POINTS = [
+  { id: 1, col: 0, row: 0 }, { id: 2, col: 1, row: 0 }, { id: 3, col: 2, row: 0 },
+  { id: 4, col: 0, row: 1 }, { id: 5, col: 1, row: 1 }, { id: 6, col: 2, row: 1 },
+  { id: 7, col: 0, row: 2 }, { id: 8, col: 1, row: 2 }, { id: 9, col: 2, row: 2 },
+];
+
+function GesturePad({ onComplete, minPoints = 3 }) {
+  const containerRef = useRef(null);
+  const [path, setPath] = useState([]);
+  const [dragPos, setDragPos] = useState(null);
+  const pathRef = useRef([]);
+  const draggingRef = useRef(false);
+
+  const posOf = (p) => ({ x: p.col * 50, y: p.row * 50 });
+
+  function getPointerPos(event) {
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * 100,
+      y: ((event.clientY - rect.top) / rect.height) * 100,
+    };
+  }
+
+  function hitTest(pos) {
+    const threshold = 26;
+    for (const p of GESTURE_POINTS) {
+      const { x, y } = posOf(p);
+      if (Math.hypot(pos.x - x, pos.y - y) < threshold) return p;
+    }
+    return null;
+  }
+
+  function setPathSafe(next) {
+    pathRef.current = next;
+    setPath(next);
+  }
+
+  function handleDown(event) {
+    event.preventDefault();
+    const pos = getPointerPos(event);
+    const hit = hitTest(pos);
+    if (!hit) return;
+    draggingRef.current = true;
+    setPathSafe([hit.id]);
+    setDragPos(pos);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleMove(event) {
+    if (!draggingRef.current) return;
+    event.preventDefault();
+    const pos = getPointerPos(event);
+    setDragPos(pos);
+    const hit = hitTest(pos);
+    if (hit && !pathRef.current.includes(hit.id)) {
+      setPathSafe([...pathRef.current, hit.id]);
+    }
+  }
+
+  function handleUp() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragPos(null);
+    const sequence = pathRef.current.join("");
+    setPathSafe([]);
+    if (sequence.length >= minPoints) onComplete(sequence);
+  }
+
+  const linePts = [...path].map((id) => posOf(GESTURE_POINTS.find((p) => p.id === id)));
+  if (dragPos && path.length) linePts.push(dragPos);
+
+  return (
+    <div
+      ref={containerRef}
+      className="gesture-pad"
+      onPointerDown={handleDown}
+      onPointerMove={handleMove}
+      onPointerUp={handleUp}
+      onPointerCancel={handleUp}
+    >
+      <svg className="gesture-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {linePts.length > 1 && (
+          <polyline
+            points={linePts.map((p) => `${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+      </svg>
+      {GESTURE_POINTS.map((p) => (
+        <span
+          key={p.id}
+          className={`gesture-dot${path.includes(p.id) ? " active" : ""}`}
+          style={{ left: `${p.col * 50}%`, top: `${p.row * 50}%` }}
+        >
+          {p.id}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function GestureSetup() {
+  const [sequence, setSequence] = useState("");
+  const [hash, setHash] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function handleComplete(seq) {
+    setSequence(seq);
+    setCopied(false);
+    setHash(await sha256Hex(seq));
+  }
+
+  async function copyHash() {
+    try {
+      await navigator.clipboard.writeText(hash);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <main className="gesture-setup">
+      <section className="panel gesture-setup-card">
+        <h1>设置手势密码</h1>
+        <p>在下方九宫格上画一个手势（至少连接 3 个点，按顺序），松开后下方会显示对应的 SHA-256 哈希。</p>
+        <GesturePad onComplete={handleComplete} />
+        {hash && (
+          <div className="gesture-result">
+            <p>手势序列：<strong>{sequence}</strong></p>
+            <p>SHA-256 哈希（填到后端 .env 的 GESTURE_HASH）：</p>
+            <code>{hash}</code>
+            <button type="button" onClick={copyHash}>{copied ? "已复制" : "复制哈希"}</button>
+          </div>
+        )}
+        <p className="hint">记住你的手势。之后在网页里画同样的手势即可查看验证码。此页面仅用于生成哈希，不保存任何内容。</p>
+      </section>
+    </main>
+  );
+}
+
 function App() {
   const [page, setPage] = useState("overview");
   const [authMode, setAuthMode] = useState("login");
@@ -86,6 +237,11 @@ function App() {
   const [usageLoading, setUsageLoading] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [otpModal, setOtpModal] = useState(null);
+  const [otpPhase, setOtpPhase] = useState("gesture");
+  const [otpResult, setOtpResult] = useState(null);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpError, setOtpError] = useState("");
 
   const authNoticeRef = useRef(null);
   const knownMessageIdsRef = useRef(new Set());
@@ -219,6 +375,21 @@ function App() {
       clearInterval(heartbeat);
     };
   }, [user]);
+
+  useEffect(() => {
+    if (otpPhase !== "show" || !otpResult) return undefined;
+    const timer = setInterval(() => {
+      setOtpCountdown((count) => {
+        if (count <= 1) {
+          clearInterval(timer);
+          setOtpPhase("expired");
+          return 0;
+        }
+        return count - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpPhase, otpResult]);
 
   useEffect(() => {
     const stopOnUnload = () => {
@@ -358,6 +529,86 @@ function App() {
     }
   }
 
+  function readOtpCache(key) {
+    try {
+      const raw = sessionStorage.getItem(`otp:${key}`);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      const elapsed = (Date.now() - data.cachedAt) / 1000;
+      if (elapsed >= 10) return null;
+      const remaining = Math.max(0, Math.floor(data.remainingSeconds - elapsed));
+      if (remaining <= 0) return null;
+      return { otp: data.otp, remainingSeconds: remaining };
+    } catch {
+      return null;
+    }
+  }
+
+  function writeOtpCache(key, otp, remainingSeconds) {
+    try {
+      sessionStorage.setItem(`otp:${key}`, JSON.stringify({ otp, remainingSeconds, cachedAt: Date.now() }));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function accountKeyOf(account) {
+    if (account.name?.includes("A")) return "A";
+    if (account.name?.includes("B")) return "B";
+    return "A";
+  }
+
+  function openOtp(account) {
+    const key = accountKeyOf(account);
+    const cache = readOtpCache(key);
+    setOtpModal({ accountId: account.id, accountKey: key, label: account.name });
+    if (cache) {
+      setOtpResult({ otp: cache.otp, remainingSeconds: cache.remainingSeconds });
+      setOtpCountdown(cache.remainingSeconds);
+      setOtpPhase("show");
+      setOtpError("");
+    } else {
+      setOtpResult(null);
+      setOtpCountdown(0);
+      setOtpPhase("gesture");
+      setOtpError("");
+    }
+  }
+
+  function closeOtp() {
+    setOtpModal(null);
+    setOtpPhase("gesture");
+    setOtpResult(null);
+    setOtpCountdown(0);
+    setOtpError("");
+  }
+
+  async function handleGestureComplete(sequence) {
+    const gestureHash = await sha256Hex(sequence);
+    setOtpPhase("loading");
+    setOtpError("");
+    try {
+      const payload = await api("/api/otp/get", {
+        method: "POST",
+        body: JSON.stringify({ gestureHash, account: otpModal.accountKey }),
+      });
+      setOtpResult({ otp: payload.otp, remainingSeconds: payload.remainingSeconds });
+      setOtpCountdown(payload.remainingSeconds);
+      setOtpPhase("show");
+      writeOtpCache(otpModal.accountKey, payload.otp, payload.remainingSeconds);
+    } catch (error) {
+      setOtpError(error.message);
+      setOtpPhase("gesture");
+    }
+  }
+
+  function refreshOtp() {
+    setOtpResult(null);
+    setOtpCountdown(0);
+    setOtpError("");
+    setOtpPhase("gesture");
+  }
+
   function clearLocalSession() {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(USAGE_SESSIONS_KEY);
@@ -412,6 +663,10 @@ function App() {
 
   function historyForAccount(accountId) {
     return (state?.history || []).filter((item) => item.accountId === accountId).slice(0, 80);
+  }
+
+  if (new URLSearchParams(window.location.search).has("setup-gesture")) {
+    return <GestureSetup />;
   }
 
   if (!user) {
@@ -541,9 +796,12 @@ function App() {
                     ))}
                     {!people.length && <p className="empty-text">当前没有人在使用这个账号。</p>}
                   </div>
-                  <button onClick={() => mine ? stopUsage(account.id) : startUsage(account.id)} disabled={usageLoading === account.id} type="button">
-                    {usageLoading === account.id ? "处理中..." : mine ? "我结束使用" : "我开始使用"}
-                  </button>
+                  <div className="account-card-actions">
+                    <button className="otp-button" onClick={() => openOtp(account)} type="button">查看验证码</button>
+                    <button onClick={() => mine ? stopUsage(account.id) : startUsage(account.id)} disabled={usageLoading === account.id} type="button">
+                      {usageLoading === account.id ? "处理中..." : mine ? "我结束使用" : "我开始使用"}
+                    </button>
+                  </div>
                 </article>
               );
             })}
@@ -677,6 +935,42 @@ function App() {
             })}
           </div>
         </section>
+      )}
+      {otpModal && (
+        <div className="otp-overlay" onClick={closeOtp}>
+          <section className="otp-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <button className="otp-close" onClick={closeOtp} type="button" aria-label="关闭">×</button>
+            <h3>{otpModal.label} · 登录验证码</h3>
+
+            {otpPhase === "gesture" && (
+              <div className="otp-gesture-step">
+                <p>请画出你的手势密码。</p>
+                <GesturePad onComplete={handleGestureComplete} />
+                {otpError && <p className="notice error" role="alert">{otpError}</p>}
+              </div>
+            )}
+
+            {otpPhase === "loading" && <p className="otp-loading">正在生成验证码…</p>}
+
+            {otpPhase === "show" && otpResult && (
+              <div className="otp-show">
+                <p className="otp-digits">{otpResult.otp}</p>
+                <div className="otp-progress">
+                  <i style={{ width: `${Math.max(0, Math.min(100, (otpCountdown / 30) * 100))}%` }} />
+                </div>
+                <p className="otp-countdown">{otpCountdown > 0 ? `剩余 ${otpCountdown} 秒` : "已过期"}</p>
+              </div>
+            )}
+
+            {otpPhase === "expired" && (
+              <div className="otp-expired">
+                <p className="otp-digits masked">******</p>
+                <p>验证码已过期。</p>
+                <button type="button" onClick={refreshOtp}>点击刷新</button>
+              </div>
+            )}
+          </section>
+        </div>
       )}
     </main>
   );

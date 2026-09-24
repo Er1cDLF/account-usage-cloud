@@ -5,6 +5,8 @@ import express from "express";
 import http from "http";
 import pg from "pg";
 import { WebSocketServer } from "ws";
+import { authenticator } from "otplib";
+import { rateLimit } from "express-rate-limit";
 
 const { Pool } = pg;
 
@@ -13,6 +15,9 @@ const INVITE_CODE = process.env.INVITE_CODE || "WAYTOAGI";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-only-change-me";
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
 const PROFILE_PASSPHRASE = process.env.PROFILE_PASSPHRASE || "WoAiXueXi";
+const GESTURE_HASH = process.env.GESTURE_HASH || "";
+const TOTP_SECRET_A = process.env.TOTP_SECRET_A || "";
+const TOTP_SECRET_B = process.env.TOTP_SECRET_B || "";
 const HEARTBEAT_TIMEOUT_MS = 90_000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
 const DEFAULT_USER_COLOR = "#FFD93D";
@@ -36,6 +41,7 @@ const pool = new Pool({
 });
 
 const app = express();
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 const sockets = new Set();
@@ -559,6 +565,44 @@ app.post("/api/messages", requireUser(async (req, res) => {
   await broadcastState();
   res.json(await getState());
 }));
+
+const otpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "请求过于频繁，请稍后再试。" },
+});
+
+app.post("/api/otp/get", otpLimiter, (req, res) => {
+  const gestureHash = String(req.body?.gestureHash || "").trim().toLowerCase();
+  const account = String(req.body?.account || "").trim().toUpperCase();
+
+  const expected = String(GESTURE_HASH || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(gestureHash) || !/^[0-9a-f]{64}$/.test(expected)) {
+    return res.status(403).json({ ok: false, error: "手势错误" });
+  }
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const actualBuf = Buffer.from(gestureHash, "utf8");
+  if (!crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+    return res.status(403).json({ ok: false, error: "手势错误" });
+  }
+
+  const secret = account === "A" ? TOTP_SECRET_A : account === "B" ? TOTP_SECRET_B : "";
+  if (!secret) {
+    return res.status(503).json({ ok: false, error: "该账号尚未配置验证码。" });
+  }
+
+  let otp;
+  try {
+    otp = authenticator.generate(secret.trim());
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: "验证码生成失败。" });
+  }
+
+  const remainingSeconds = 30 - (Math.floor(Date.now() / 1000) % 30);
+  return res.json({ ok: true, otp, remainingSeconds });
+});
 
 wss.on("connection", async (socket, request) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
