@@ -11,7 +11,6 @@ import { rateLimit } from "express-rate-limit";
 const { Pool } = pg;
 
 const PORT = Number(process.env.PORT || 10000);
-const INVITE_CODE = process.env.INVITE_CODE || "WAYTOAGI";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-only-change-me";
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
 const PROFILE_PASSPHRASE = process.env.PROFILE_PASSPHRASE || "WoAiXueXi";
@@ -409,9 +408,6 @@ app.post("/api/register", async (req, res, next) => {
     const username = String(req.body.username || "").trim().toLowerCase().slice(0, 32);
     const displayName = String(req.body.displayName || req.body.username || "").trim().slice(0, 32);
     const password = String(req.body.password || "");
-    const inviteCode = String(req.body.inviteCode || "").trim();
-
-    if (inviteCode !== INVITE_CODE) return res.status(403).json({ error: "邀请码不正确。" });
     if (!/^[a-z0-9_]{3,32}$/.test(username)) return res.status(400).json({ error: "账号只能包含小写字母、数字、下划线，长度 3-32 位。" });
     if (!displayName) return res.status(400).json({ error: "请填写显示名称。" });
     if (password.length < 6) return res.status(400).json({ error: "密码至少 6 位。" });

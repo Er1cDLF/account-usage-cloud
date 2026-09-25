@@ -73,7 +73,7 @@ function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [message, setMessage] = useState("");
   const [login, setLogin] = useState({ username: localStorage.getItem(USERNAME_KEY) || "", password: "" });
-  const [register, setRegister] = useState({ username: "", displayName: "", password: "", inviteCode: "" });
+  const [register, setRegister] = useState({ username: "", displayName: "", password: "" });
   const [chatText, setChatText] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
@@ -326,7 +326,7 @@ function App() {
       const payload = await api("/api/register", { method: "POST", body: JSON.stringify({ ...register, username }) });
       localStorage.setItem(USERNAME_KEY, username);
       setLogin({ username, password: "" });
-      setRegister({ username: "", displayName: "", password: "", inviteCode: "" });
+      setRegister({ username: "", displayName: "", password: "" });
       setAuthMode("login");
       setAuthMessage(payload.message || "注册成功，请等待管理员授权后登录。");
     } catch (error) {
@@ -559,7 +559,6 @@ function App() {
               <input value={register.username} onChange={(e) => setRegister({ ...register, username: e.target.value })} placeholder="账号：小写字母、数字、下划线" required />
               <input value={register.displayName} onChange={(e) => setRegister({ ...register, displayName: e.target.value })} placeholder="显示名称" required />
               <input value={register.password} onChange={(e) => setRegister({ ...register, password: e.target.value })} placeholder="密码，至少 6 位" type="password" required />
-              <input value={register.inviteCode} onChange={(e) => setRegister({ ...register, inviteCode: e.target.value })} placeholder="邀请码" required />
               <button disabled={authLoading}>{authLoading ? "注册中..." : "提交注册"}</button>
             </form>
           )}
